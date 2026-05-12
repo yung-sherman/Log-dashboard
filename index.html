@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E36 DASH — RK Tunes E85 M52T</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --card: #18181c;
+    --border: #2c2c32;
+    --accent: #3b82f6;
+    --normal: #22c55e;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --muted: #6b7280;
+    --text: #e5e7eb;
+    --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+    --font-ui: system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font-ui); }
+
+  /* TOP BAR */
+  #topbar {
+    position: fixed; top: 0; left: 0; right: 0; height: 48px;
+    background: #111114; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 12px; gap: 10px; z-index: 100;
+  }
+  #topbar-logo { font-family: var(--font-mono); color: var(--accent); font-size: 14px; font-weight: 700; white-space: nowrap; }
+  #topbar-info { font-size: 11px; color: var(--muted); font-family: var(--font-mono); white-space: nowrap; flex: 1; text-align: center; }
+  #topbar-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .tb-btn {
+    background: #222228; border: 1px solid var(--border); color: var(--text);
+    border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer;
+    font-family: var(--font-mono); white-space: nowrap;
+  }
+  .tb-btn:hover { background: #2c2c38; }
+  .tb-btn.active { background: #1e3a5f; border-color: var(--accent); color: var(--accent); }
+  #speed-select {
+    background: #222228; border: 1px solid var(--border); color: var(--text);
+    border-radius: 4px; padding: 3px 4px; font-size: 11px; font-family: var(--font-mono);
+  }
+  #frame-counter { font-family: var(--font-mono); font-size: 10px; color: var(--muted); white-space: nowrap; }
+
+  /* SCRUBBER */
+  #scrubber-wrap {
+    position: fixed; top: 48px; left: 0; right: 0; height: 20px;
+    background: #111114; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 12px; z-index: 100;
+  }
+  #scrubber {
+    width: 100%; height: 4px; cursor: pointer;
+    -webkit-appearance: none; appearance: none;
+    background: var(--border); border-radius: 2px; outline: none;
+  }
+  #scrubber::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--accent); cursor: pointer;
+  }
+
+  /* MAIN CONTENT */
+  #main {
+    position: fixed; top: 68px; left: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* DROP ZONE */
+  #dropzone {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; z-index: 200;
+    background: var(--bg);
+  }
+  #drop-target {
+    width: 420px; max-width: 90vw; padding: 60px 40px;
+    border: 2px dashed var(--border); border-radius: 12px;
+    text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s;
+  }
+  #drop-target:hover, #drop-target.drag-over { border-color: var(--accent); background: rgba(59,130,246,0.05); }
+  #drop-target h2 { font-size: 18px; color: var(--text); margin-bottom: 8px; font-family: var(--font-mono); }
+  #drop-target p { font-size: 12px; color: var(--muted); }
+  #drop-target .drop-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+  #file-input { display: none; }
+
+  /* CHANNEL TOGGLES */
+  #channel-toggles {
+    padding: 6px 12px; border-bottom: 1px solid var(--border);
+    display: flex; flex-wrap: wrap; gap: 6px; background: #111114; flex-shrink: 0;
+  }
+  .ch-toggle { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); cursor: pointer; }
+  .ch-toggle input { width: 12px; height: 12px; cursor: pointer; accent-color: var(--accent); }
+
+  /* GAUGE SECTION */
+  #gauge-section {
+    flex: 0 0 auto; overflow: hidden; padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  #gauge-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 10px;
+  }
+  .gauge-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px; display: flex; flex-direction: column; align-items: center;
+    position: relative; transition: border-color 0.2s;
+    height: 210px;
+  }
+  .gauge-card.danger-pulse { animation: dpulse 0.8s ease-in-out infinite; }
+  @keyframes dpulse { 0%,100%{border-color:#ef4444} 50%{border-color:#7f1d1d} }
+  .gauge-card.seek-flash { outline: 2px solid var(--accent); }
+  .gauge-toggle-btn {
+    position: absolute; top: 6px; right: 6px;
+    background: #222228; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 3px; padding: 1px 5px; font-size: 9px; cursor: pointer;
+    font-family: var(--font-mono); z-index: 1;
+  }
+  .gauge-toggle-btn:hover { color: var(--text); border-color: var(--accent); }
+  .b2-flat-badge {
+    position: absolute; top: 28px; left: 50%; transform: translateX(-50%);
+    background: rgba(245,158,11,0.15); border: 1px solid var(--warn);
+    color: var(--warn); font-size: 9px; padding: 2px 6px; border-radius: 3px;
+    white-space: nowrap; z-index: 2; font-family: var(--font-mono);
+  }
+  .retard-overlay {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    background: rgba(239,68,68,0.9); color: white; font-family: var(--font-mono);
+    font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px;
+    z-index: 3; pointer-events: none; text-align: center;
+  }
+
+  /* Digital gauge */
+  .dg-wrap { width: 100%; height: 100%; display: flex; flex-direction: column; padding: 4px 6px; }
+  .dg-name { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; text-align: center; }
+  .dg-value { flex: 1; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 28px; font-weight: 700; }
+  .dg-unit { font-size: 10px; color: var(--muted); text-align: center; margin-bottom: 6px; }
+  .dg-bar-wrap { width: 100%; height: 4px; background: var(--border); border-radius: 2px; }
+  .dg-bar { height: 4px; border-radius: 2px; transition: width 0.1s; }
+  .dg-status-dot { position: absolute; top: 8px; right: 28px; width: 8px; height: 8px; border-radius: 50%; }
+
+  /* GRAPH SECTION */
+  #graph-section {
+    flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 12px;
+  }
+  .graph-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    margin-bottom: 8px; padding: 6px 8px;
+  }
+  .graph-card.hidden { display: none; }
+  .graph-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .graph-name { font-size: 11px; color: var(--muted); font-family: var(--font-mono); text-transform: uppercase; }
+  .graph-stats { font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
+  .graph-canvas-wrap { height: 100px; position: relative; cursor: crosshair; }
+  .graph-placeholder {
+    background: var(--card); border: 1px dashed var(--border); border-radius: 6px;
+    margin-bottom: 8px; padding: 12px; height: 80px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--muted); font-family: var(--font-mono); text-align: center;
+  }
+
+  /* STATS PANEL */
+  #stats-panel {
+    display: none; position: fixed; top: 68px; left: 0; right: 0; bottom: 0;
+    background: var(--bg); overflow-y: auto; z-index: 90; padding: 16px;
+  }
+  #stats-panel.visible { display: block; }
+  #stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 900px; }
+  .stat-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px;
+  }
+  .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+  .stat-value { font-family: var(--font-mono); font-size: 18px; font-weight: 700; }
+  .stat-value.warn { color: var(--warn); }
+  .stat-value.danger { color: var(--danger); }
+  .stat-value.ok { color: var(--normal); }
+
+  /* EVENT LOG */
+  #event-panel {
+    display: none; position: fixed; top: 68px; left: 0; right: 0; bottom: 0;
+    background: var(--bg); overflow-y: auto; z-index: 90; padding: 16px;
+  }
+  #event-panel.visible { display: block; }
+  #event-table { width: 100%; border-collapse: collapse; font-size: 11px; font-family: var(--font-mono); }
+  #event-table th { text-align: left; padding: 6px 8px; color: var(--muted); border-bottom: 1px solid var(--border); font-size: 10px; text-transform: uppercase; }
+  #event-table td { padding: 5px 8px; border-bottom: 1px solid #1e1e24; }
+  #event-table tr:hover td { background: #1e1e24; cursor: pointer; }
+  .ev-danger { color: var(--danger); }
+  .ev-warn { color: var(--warn); }
+  .ev-info { color: var(--accent); }
+
+  /* TOASTS */
+  #toast-container {
+    position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+    z-index: 500; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    pointer-events: none;
+  }
+  .toast {
+    padding: 8px 16px; border-radius: 6px; font-size: 12px; font-family: var(--font-mono);
+    animation: slideDown 0.2s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    pointer-events: none;
+  }
+  .toast.info { background: #1e3a5f; border: 1px solid var(--accent); color: var(--accent); }
+  .toast.warning { background: #3d2c00; border: 1px solid var(--warn); color: var(--warn); }
+  .toast.danger { background: #3d0000; border: 1px solid var(--danger); color: var(--danger); }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div id="topbar-logo">E36 DASH</div>
+  <div id="topbar-info">Drop a CSV log to begin</div>
+  <div id="topbar-controls">
+    <button class="tb-btn" id="btn-reset" title="Reset to frame 0">◀◀</button>
+    <button class="tb-btn" id="btn-play">▶ Play</button>
+    <select id="speed-select" title="Playback speed">
+      <option value="0.25">0.25×</option>
+      <option value="0.5">0.5×</option>
+      <option value="1" selected>1×</option>
+      <option value="2">2×</option>
+      <option value="5">5×</option>
+      <option value="10">10×</option>
+    </select>
+    <div id="frame-counter">—</div>
+    <button class="tb-btn" id="btn-stats">Stats</button>
+    <button class="tb-btn" id="btn-events">Events</button>
+  </div>
+</div>
+
+<!-- SCRUBBER -->
+<div id="scrubber-wrap">
+  <input type="range" id="scrubber" min="0" max="100" value="0" step="1">
+</div>
+
+<!-- DROP ZONE -->
+<div id="dropzone">
+  <div id="drop-target">
+    <div class="drop-icon">📂</div>
+    <h2>Drop RomRaider CSV log</h2>
+    <p>Drag and drop a .csv file here<br>or click to browse</p>
+  </div>
+  <input type="file" id="file-input" accept=".csv">
+</div>
+
+<!-- MAIN CONTENT -->
+<div id="main" style="display:none;">
+  <div id="channel-toggles"></div>
+  <div id="gauge-section">
+    <div id="gauge-grid"></div>
+  </div>
+  <div id="graph-section"></div>
+</div>
+
+<!-- STATS PANEL -->
+<div id="stats-panel">
+  <h3 style="font-family:var(--font-mono);color:var(--accent);margin-bottom:14px;font-size:13px;">RUN STATISTICS</h3>
+  <div id="stats-grid"></div>
+</div>
+
+<!-- EVENT LOG -->
+<div id="event-panel">
+  <h3 style="font-family:var(--font-mono);color:var(--accent);margin-bottom:14px;font-size:13px;">DANGER / EVENT LOG</h3>
+  <table id="event-table">
+    <thead><tr><th>Frame</th><th>Time</th><th>Channel</th><th>Value</th><th>RPM</th><th>Load</th><th>Notes</th></tr></thead>
+    <tbody id="event-tbody"></tbody>
+  </table>
+</div>
+
+<!-- TOASTS -->
+<div id="toast-container"></div>
+
+<script>
+'use strict';
+
+// ─── GLOBAL STATE ────────────────────────────────────────────────────────────
+const S = {
+  rows: [],
+  channels: {},
+  currentFrame: 0,
+  isPlaying: false,
+  speed: 1,
+  frameIntervalMs: 100,
+  gaugeTypes: {},
+  gaugeValues: {},
+  b2FlatFlag: false,
+  retardEvents: [],
+  dangerEvents: [],
+  charts: {},
+  intervalId: null,
+  retardOverlayTimers: {},
+  rafId: null,
+  lastDrawnValues: {},
+  lastPlayheadX: {},
+  visibleChannels: {}
+};
+
+// ─── CHANNEL DEFINITIONS ─────────────────────────────────────────────────────
+const CHANNEL_DEFS = {
+  rpm:      { label: 'RPM',        unit: 'rpm',    min: 0,   max: 8000, fuzzy: 'engine speed' },
+  speed:    { label: 'Speed',      unit: 'mph',    min: 0,   max: 160,  fuzzy: 'vehicle speed' },
+  tps:      { label: 'TPS',        unit: '%',      min: 0,   max: 100,  fuzzy: 'throttle position' },
+  load:     { label: 'Load',       unit: 'mg/stk', min: 0,   max: 420,  fuzzy: 'engine load' },
+  iat:      { label: 'IAT',        unit: '°F',     min: 32,  max: 210,  fuzzy: 'intake air temp' },
+  coolant:  { label: 'Coolant',    unit: '°F',     min: 150, max: 260,  fuzzy: 'coolant temp' },
+  timing:   { label: 'Timing',     unit: '°BTDC',  min: 0,   max: 60,   fuzzy: 'ignition angle' },
+  injpw:    { label: 'Inj PW',     unit: 'ms',     min: 0,   max: 10,   fuzzy: 'fuel injector pulse' },
+  injDuty:  { label: 'Inj Duty',   unit: '%',      min: 0,   max: 100,  fuzzy: null },
+  iacv:     { label: 'IACV',       unit: '%',      min: 0,   max: 100,  fuzzy: 'idle air control' },
+  vanos:    { label: 'VANOS',      unit: 'KW°',    min: 0,   max: 50,   fuzzy: 'vanos' },
+  voltage:  { label: 'Voltage',    unit: 'V',      min: 10,  max: 16,   fuzzy: 'battery voltage' },
+  lambdaB1: { label: 'λ Bank 1',   unit: '% trim', min: -20, max: 20,   fuzzy: 'lambda integrator.*bank 1|lambda.*bank.?1|bank.?1.*lambda' },
+  lambdaB2: { label: 'λ Bank 2',   unit: '% trim', min: -20, max: 20,   fuzzy: 'lambda integrator.*bank 2|lambda.*bank.?2|bank.?2.*lambda' },
+  boost:    { label: 'Boost',      unit: 'psi',    min: -5,  max: 30,   fuzzy: 'manifold|map sensor|boost' },
+  afr:      { label: 'AFR',        unit: 'AFR',    min: 9.0, max: 16.0, fuzzy: 'afr|wideband|air fuel' },
+  knock:    { label: 'Knock',      unit: 'counts', min: 0,   max: 10,   fuzzy: 'knock|detonation' }
+};
+
+const OPTIONAL_CHANNELS = new Set(['boost', 'afr', 'knock']);
+
+// Heater channels to ignore
+const IGNORE_FUZZY = ['heater|upstream.*heat|downstream.*heat|o2.*heat|lambda.*heat|probe.*heat'];
+
+// ─── DANGER THRESHOLDS ───────────────────────────────────────────────────────
+function getDangerState(chId, val, row) {
+  const rpm   = row ? row.rpm   : 0;
+  const load  = row ? row.load  : 0;
+  const tps   = row ? row.tps   : 0;
+  const injpw = row ? row.injpw : 0;
+
+  if (val === null || val === undefined || isNaN(val)) return 'normal';
+
+  switch (chId) {
+    case 'rpm':
+      if (val > 7300) return 'danger';
+      if (val > 7000) return 'warning';
+      return 'normal';
+
+    case 'load':
+      if (val > 395) return 'danger';
+      if (val > 360) return 'warning';
+      return 'normal';
+
+    case 'iat':
+      if (val > 148) return 'danger';
+      if (val > 120) return 'warning';
+      return 'normal';
+
+    case 'coolant':
+      if (val > 221) return 'danger';
+      if (val > 212) return 'warning';
+      return 'normal';
+
+    case 'timing': {
+      if (load < 150 || tps < 40) return 'normal';
+      if (load >= 150 && load < 200 && tps >= 40 && tps < 60) {
+        if (val > 50) return 'danger';
+        if (val > 46) return 'warning';
+        return 'normal';
+      }
+      if (load >= 200 && tps >= 60) {
+        if (val < 15 || val > 46) return 'danger';
+        if (val < 18 || val > 40) return 'warning';
+        return 'normal';
+      }
+      return 'normal';
+    }
+
+    case 'injpw':
+      if (val > 8.8) return 'danger';
+      if (val > 8.0) return 'warning';
+      return 'normal';
+
+    case 'injDuty':
+      if (val > 85) return 'danger';
+      if (val > 75) return 'warning';
+      return 'normal';
+
+    case 'voltage':
+      if (val < 12.5) return 'danger';
+      if (val < 13.2) return 'warning';
+      return 'normal';
+
+    case 'lambdaB1': {
+      if (tps > 80) {
+        if (Math.abs(val) > 10) return 'danger';
+        if (Math.abs(val) > 6)  return 'warning';
+        return 'normal';
+      }
+      if (val > 14 || val < -10) return 'danger';
+      if (val > 10) return 'warning';
+      return 'normal';
+    }
+
+    case 'lambdaB2':
+      // B2 flat — do not apply normal thresholds
+      if (S.b2FlatFlag) return 'normal';
+      if (val > 14 || val < -10) return 'danger';
+      if (val > 10) return 'warning';
+      return 'normal';
+
+    case 'afr':
+      if (tps > 80) {
+        if (val < 10.4 || val > 13.6) return 'danger';
+        if (val < 11.0 || val > 12.8) return 'warning';
+      }
+      return 'normal';
+
+    case 'boost':
+      if (val > 26) return 'danger';
+      if (val > 22) return 'warning';
+      return 'normal';
+
+    case 'knock':
+      if (val > 2) return 'danger';
+      if (val > 0) return 'warning';
+      return 'normal';
+
+    default:
+      return 'normal';
+  }
+}
+
+function dangerColor(state) {
+  if (state === 'danger')  return '#ef4444';
+  if (state === 'warning') return '#f59e0b';
+  return '#22c55e';
+}
+
+// ─── FUZZY COLUMN MATCHING ───────────────────────────────────────────────────
+function fuzzyMatch(colName, pattern) {
+  if (!pattern) return false;
+  const col = colName.toLowerCase();
+  const parts = pattern.split('|');
+  return parts.some(p => {
+    try { return new RegExp(p, 'i').test(col); }
+    catch(e) { return col.includes(p); }
+  });
+}
+
+function shouldIgnoreColumn(colName) {
+  return IGNORE_FUZZY.some(p => {
+    try { return new RegExp(p, 'i').test(colName); }
+    catch(e) { return false; }
+  });
+}
+
+function mapColumns(headers) {
+  const mapping = {}; // channelId -> colName
+  const usedCols = new Set();
+
+  for (const [chId, def] of Object.entries(CHANNEL_DEFS)) {
+    if (!def.fuzzy) continue;
+    for (const h of headers) {
+      if (usedCols.has(h)) continue;
+      if (shouldIgnoreColumn(h)) continue;
+      if (fuzzyMatch(h, def.fuzzy)) {
+        mapping[chId] = h;
+        usedCols.add(h);
+        break;
+      }
+    }
+  }
+  return mapping;
+}
+
+// ─── CSV PARSING ─────────────────────────────────────────────────────────────
+function parseCSV(file) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        try {
+          // Strip leading "* " from headers
+          const rawFields = results.meta.fields || [];
+          const cleanFields = rawFields.map(f => f.replace(/^\*\s*/, '').trim());
+
+          // Find time column
+          let timeCol = null;
+          for (const f of cleanFields) {
+            if (/time|timestamp/i.test(f)) { timeCol = f; break; }
+          }
+
+          // Map columns
+          const colMap = mapColumns(cleanFields);
+
+          // Detect frameInterval
+          let frameIntervalMs = 100;
+          if (timeCol && results.data.length > 1) {
+            const rawIdx = rawFields.findIndex((f,i) => cleanFields[i] === timeCol);
+            const t0 = parseFloat(results.data[0][rawFields[rawIdx]]);
+            const t1 = parseFloat(results.data[1][rawFields[rawIdx]]);
+            if (!isNaN(t0) && !isNaN(t1) && t1 > t0) {
+              frameIntervalMs = Math.round((t1 - t0) * 1000) || 100;
+            }
+          }
+
+          // Build rows
+          const rows = results.data.map((rawRow, i) => {
+            const row = { _frame: i };
+
+            // Get raw value from rawField->cleanField mapping
+            for (const [ci, cleanF] of cleanFields.entries()) {
+              rawRow[cleanF] = rawRow[rawFields[ci]];
+            }
+
+            for (const [chId, colName] of Object.entries(colMap)) {
+              let v = parseFloat(rawRow[colName]);
+              if (isNaN(v)) v = null;
+
+              // Unit conversions at parse time
+              if (v !== null) {
+                if (chId === 'speed')   v = v / 1.60934;
+                if (chId === 'iat')     v = v * 9/5 + 32;
+                if (chId === 'coolant') v = v * 9/5 + 32;
+              }
+              row[chId] = v;
+            }
+
+            // Derived: injDuty
+            if (row.injpw !== null && row.injpw !== undefined && row.rpm > 0) {
+              const raw = (row.injpw / (60000 / row.rpm / 3)) * 100;
+              row.injDuty = Math.min(100, Math.max(0, raw));
+              row._injDutyRaw = raw;
+            } else {
+              row.injDuty = null;
+              row._injDutyRaw = null;
+            }
+
+            return row;
+          });
+
+          // B2 flat detection
+          const b2Vals = rows.map(r => r.lambdaB2).filter(v => v !== null && !isNaN(v));
+          let b2FlatFlag = false;
+          if (b2Vals.length > 1) {
+            const mean = b2Vals.reduce((a,b) => a+b, 0) / b2Vals.length;
+            const variance = b2Vals.reduce((a,b) => a + (b-mean)**2, 0) / b2Vals.length;
+            const stddev = Math.sqrt(variance);
+            if (stddev < 0.05) b2FlatFlag = true;
+          }
+
+          // Timing retard events
+          const retardEvents = [];
+          for (let i = 1; i < rows.length; i++) {
+            const prev = rows[i-1], curr = rows[i];
+            if (prev.tps > 40 && curr.tps > 40 && prev.load > 150 && curr.load > 150) {
+              if (prev.timing !== null && curr.timing !== null) {
+                const delta = curr.timing - prev.timing;
+                if (delta < -4) {
+                  retardEvents.push({
+                    frame: i,
+                    rpm: curr.rpm,
+                    load: curr.load,
+                    timingBefore: prev.timing,
+                    timingAfter: curr.timing,
+                    delta: delta
+                  });
+                }
+              }
+            }
+          }
+
+          // Detect active channels
+          const activeChannels = {};
+          for (const chId of Object.keys(CHANNEL_DEFS)) {
+            if (chId === 'injDuty') {
+              if (rows.some(r => r.injDuty !== null)) {
+                activeChannels[chId] = CHANNEL_DEFS[chId];
+              }
+              continue;
+            }
+            if (colMap[chId]) {
+              activeChannels[chId] = CHANNEL_DEFS[chId];
+            }
+          }
+
+          resolve({ rows, colMap, activeChannels, frameIntervalMs, b2FlatFlag, retardEvents, filename: file.name });
+        } catch(e) { reject(e); }
+      },
+      error: reject
+    });
+  });
+}
+
+// ─── DANGER EVENTS SCAN ───────────────────────────────────────────────────────
+function buildDangerEvents(rows, channels) {
+  const events = [];
+  const CHANNELS_TO_SCAN = ['rpm','load','iat','coolant','timing','injpw','injDuty','voltage','lambdaB1','lambdaB2','boost','afr','knock'];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    for (const chId of CHANNELS_TO_SCAN) {
+      if (!channels[chId]) continue;
+      const val = row[chId];
+      if (val === null || val === undefined) continue;
+      const state = getDangerState(chId, val, row);
+      if (state === 'danger' || state === 'warning') {
+        const def = CHANNEL_DEFS[chId];
+        let notes = '';
+
+        if (chId === 'injpw' && row.rpm < 3500 && val > 6.5 && row.tps > 40) {
+          notes = 'Fuel starvation risk zone';
+        }
+        if (chId === 'timing' && state === 'danger') notes = 'Timing danger';
+        if (chId === 'timing' && state === 'warning') notes = 'Timing warning';
+
+        // Only log state changes (avoid flood)
+        const lastEv = events[events.length - 1];
+        if (lastEv && lastEv.chId === chId && lastEv.state === state && i - lastEv.frame < 5) continue;
+
+        events.push({
+          frame: i,
+          chId,
+          label: def.label,
+          unit: def.unit,
+          val,
+          rpm: row.rpm,
+          load: row.load,
+          state,
+          notes,
+          time: i * S.frameIntervalMs / 1000
+        });
+      }
+    }
+  }
+
+  // Add retard events
+  for (const ev of S.retardEvents) {
+    events.push({
+      frame: ev.frame,
+      chId: 'timing',
+      label: 'Timing',
+      unit: '°BTDC',
+      val: ev.timingAfter,
+      rpm: ev.rpm,
+      load: ev.load,
+      state: 'danger',
+      notes: `Retard −${Math.abs(ev.delta).toFixed(1)}° (${ev.timingBefore.toFixed(2)}° → ${ev.timingAfter.toFixed(2)}°) @ ${Math.round(ev.rpm)}rpm / ${Math.round(ev.load)}mg`,
+      time: ev.frame * S.frameIntervalMs / 1000,
+      isRetard: true
+    });
+  }
+
+  events.sort((a,b) => a.frame - b.frame);
+  return events;
+}
+
+// ─── STATS COMPUTATION ───────────────────────────────────────────────────────
+function computeStats(rows) {
+  const st = {};
+  const wotFrames = rows.filter(r => r.tps > 80);
+
+  st.peakRPM = Math.max(...rows.map(r => r.rpm || 0));
+  st.peakLoad = Math.max(...rows.map(r => r.load || 0));
+  st.wotCount = wotFrames.length;
+
+  const wotTimings = wotFrames.map(r => r.timing).filter(v => v !== null && !isNaN(v));
+  st.minTimingWOT = wotTimings.length ? Math.min(...wotTimings) : null;
+  st.maxTimingFull = rows.reduce((m, r) => r.timing !== null ? Math.max(m, r.timing) : m, -Infinity);
+
+  st.retardCount = S.retardEvents.length;
+
+  const pws = rows.map((r,i) => ({ v: r.injpw, i })).filter(x => x.v !== null && !isNaN(x.v));
+  if (pws.length) {
+    const peak = pws.reduce((m,x) => x.v > m.v ? x : m);
+    st.peakInjPW = peak.v;
+    st.peakInjPWFrame = peak.i;
+  }
+
+  const duties = rows.map(r => r.injDuty).filter(v => v !== null && !isNaN(v));
+  st.peakInjDuty = duties.length ? Math.max(...duties) : null;
+
+  const lowRpmHighLoad = rows.filter(r => r.rpm < 3500 && r.injpw > 6.5 && r.tps > 40);
+  st.lowRpmHighLoadCount = lowRpmHighLoad.length;
+
+  const iats = rows.map(r => r.iat).filter(v => v !== null && !isNaN(v));
+  st.peakIAT = iats.length ? Math.max(...iats) : null;
+
+  const coolants = rows.map(r => r.coolant).filter(v => v !== null && !isNaN(v));
+  st.minCoolant = coolants.length ? Math.min(...coolants) : null;
+  st.maxCoolant = coolants.length ? Math.max(...coolants) : null;
+
+  const lb1 = rows.map(r => r.lambdaB1).filter(v => v !== null && !isNaN(v));
+  st.minLB1 = lb1.length ? Math.min(...lb1) : null;
+  st.maxLB1 = lb1.length ? Math.max(...lb1) : null;
+
+  st.b2FlatFlag = S.b2FlatFlag;
+  return st;
+}
+
+// ─── RENDERING: STATS PANEL ──────────────────────────────────────────────────
+function renderStats(rows) {
+  const st = computeStats(rows);
+  const grid = document.getElementById('stats-grid');
+  grid.innerHTML = '';
+
+  function card(label, value, cls='') {
+    const d = document.createElement('div');
+    d.className = 'stat-card';
+    d.innerHTML = `<div class="stat-label">${label}</div><div class="stat-value ${cls}">${value}</div>`;
+    grid.appendChild(d);
+  }
+
+  card('Peak RPM', st.peakRPM ? Math.round(st.peakRPM).toLocaleString() : '—', st.peakRPM > 7000 ? 'warn' : 'ok');
+  card('Peak Engine Load', st.peakLoad ? st.peakLoad.toFixed(1) + ' mg/stk' : '—', st.peakLoad > 360 ? 'warn' : 'ok');
+  card('WOT Frames (TPS>80%)', st.wotCount.toString(), st.wotCount > 0 ? 'ok' : '');
+  card('Min Timing @ WOT', st.minTimingWOT !== null ? st.minTimingWOT.toFixed(1) + '° BTDC' : '—', '');
+  card('Max Timing (Full Run)', st.maxTimingFull > -Infinity ? st.maxTimingFull.toFixed(1) + '° BTDC' : '—', '');
+  card('Timing Retard Events', st.retardCount.toString(), st.retardCount > 0 ? 'danger' : 'ok');
+  card('Peak Injector PW', st.peakInjPW ? `${st.peakInjPW.toFixed(3)} ms (frame ${st.peakInjPWFrame})` : '—', st.peakInjPW > 8.0 ? 'warn' : 'ok');
+  card('Peak Inj Duty Cycle', st.peakInjDuty ? st.peakInjDuty.toFixed(1) + '%' : '—', st.peakInjDuty > 75 ? 'warn' : 'ok');
+  card('Low-RPM High-Load Events', st.lowRpmHighLoadCount.toString(), st.lowRpmHighLoadCount > 0 ? 'warn' : 'ok');
+  card('Peak IAT', st.peakIAT ? st.peakIAT.toFixed(1) + '°F' : '—', st.peakIAT > 120 ? 'warn' : 'ok');
+  card('Coolant Range', (st.minCoolant !== null && st.maxCoolant !== null) ? `${st.minCoolant.toFixed(1)} → ${st.maxCoolant.toFixed(1)} °F` : '—', st.maxCoolant > 212 ? 'warn' : 'ok');
+  card('Bank 1 λ Range', (st.minLB1 !== null && st.maxLB1 !== null) ? `${st.minLB1.toFixed(1)} → ${st.maxLB1.toFixed(1)} %` : '—', '');
+  if (st.b2FlatFlag) {
+    card('Bank 2 λ Status', 'FLAT (0.0% all frames) — INSPECT', 'warn');
+  } else {
+    card('Bank 2 λ Status', 'Normal', 'ok');
+  }
+}
+
+// ─── RENDERING: EVENT LOG ─────────────────────────────────────────────────────
+function renderEventLog() {
+  const tbody = document.getElementById('event-tbody');
+  tbody.innerHTML = '';
+  for (const ev of S.dangerEvents) {
+    const tr = document.createElement('tr');
+    const cls = ev.state === 'danger' ? 'ev-danger' : 'ev-warn';
+    const t = (ev.frame * S.frameIntervalMs / 1000).toFixed(2);
+    tr.innerHTML = `
+      <td class="${cls}">${ev.frame}</td>
+      <td>${t}s</td>
+      <td>${ev.label}</td>
+      <td class="${cls}">${typeof ev.val === 'number' ? ev.val.toFixed(2) : ev.val} ${ev.unit}</td>
+      <td>${ev.rpm !== null && !isNaN(ev.rpm) ? Math.round(ev.rpm) : '—'}</td>
+      <td>${ev.load !== null && !isNaN(ev.load) ? Math.round(ev.load) : '—'}</td>
+      <td>${ev.notes || ''}</td>
+    `;
+    tr.addEventListener('click', () => {
+      seekToFrame(ev.frame);
+      hideOverlays();
+      flashGaugeCard(ev.chId);
+    });
+    tbody.appendChild(tr);
+  }
+}
+
+function flashGaugeCard(chId) {
+  const card = document.getElementById(`gauge-card-${chId}`);
+  if (!card) return;
+  card.classList.add('seek-flash');
+  setTimeout(() => card.classList.remove('seek-flash'), 1200);
+}
+
+// ─── GAUGE RENDERING ─────────────────────────────────────────────────────────
+const gaugeCanvases = {};
+const gaugeDigitalEls = {};
+
+function buildGaugeGrid() {
+  const grid = document.getElementById('gauge-grid');
+  grid.innerHTML = '';
+
+  for (const chId of Object.keys(S.channels)) {
+    const def = CHANNEL_DEFS[chId];
+    if (!def) continue;
+
+    const card = document.createElement('div');
+    card.className = 'gauge-card';
+    card.id = `gauge-card-${chId}`;
+
+    // Toggle button
+    const btn = document.createElement('button');
+    btn.className = 'gauge-toggle-btn';
+    btn.id = `gauge-toggle-${chId}`;
+    btn.textContent = S.gaugeTypes[chId] === 'digital' ? 'D' : 'A';
+    btn.addEventListener('click', () => toggleGaugeType(chId));
+    card.appendChild(btn);
+
+    // B2 badge
+    if (chId === 'lambdaB2' && S.b2FlatFlag) {
+      const badge = document.createElement('div');
+      badge.className = 'b2-flat-badge';
+      badge.textContent = 'B2 FLAT — INSPECT';
+      card.appendChild(badge);
+    }
+
+    // Retard overlay placeholder
+    if (chId === 'timing') {
+      const overlay = document.createElement('div');
+      overlay.className = 'retard-overlay';
+      overlay.id = 'retard-overlay';
+      overlay.style.display = 'none';
+      card.appendChild(overlay);
+    }
+
+    // Gauge content
+    if (S.gaugeTypes[chId] === 'digital') {
+      card.appendChild(buildDigitalGaugeEl(chId, def));
+    } else {
+      const canvas = document.createElement('canvas');
+      canvas.id = `gauge-canvas-${chId}`;
+      card.appendChild(canvas);
+      gaugeCanvases[chId] = canvas;
+    }
+
+    grid.appendChild(card);
+  }
+  setupResizeObservers();
+  requestAnimationFrame(() => initAllCanvases());
+}
+
+function buildDigitalGaugeEl(chId, def) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dg-wrap';
+  wrap.id = `dg-wrap-${chId}`;
+  wrap.innerHTML = `
+    <div class="dg-name">${def.label}</div>
+    <div class="dg-value" id="dg-val-${chId}">—</div>
+    <div class="dg-unit">${def.unit}</div>
+    <div class="dg-bar-wrap"><div class="dg-bar" id="dg-bar-${chId}"></div></div>
+  `;
+  // Status dot
+  const dot = document.createElement('div');
+  dot.className = 'dg-status-dot';
+  dot.id = `dg-dot-${chId}`;
+  dot.style.background = '#22c55e';
+  const card = document.getElementById(`gauge-card-${chId}`);
+  if (card) card.appendChild(dot);
+  return wrap;
+}
+
+function toggleGaugeType(chId) {
+  const current = S.gaugeTypes[chId];
+  S.gaugeTypes[chId] = current === 'digital' ? 'analog' : 'digital';
+  localStorage.setItem(`e36dash_gauge_${chId}`, S.gaugeTypes[chId]);
+  buildGaugeGrid();
+}
+
+function initAllCanvases() {
+  for (const [chId, canvas] of Object.entries(gaugeCanvases)) {
+    if (!canvas) continue;
+    const card = canvas.closest('.gauge-card');
+    if (!card) continue;
+    const w = card.clientWidth - 16;
+    const h = card.clientHeight - 16;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    drawAnalogGauge(chId, S.gaugeValues[chId] || CHANNEL_DEFS[chId].min, null, w, h);
+  }
+}
+
+function setupResizeObservers() {
+  for (const [chId, canvas] of Object.entries(gaugeCanvases)) {
+    if (!canvas) continue;
+    const card = canvas.closest('.gauge-card');
+    if (!card || card._ro) continue;
+    const ro = new ResizeObserver(() => {
+      const w = card.clientWidth - 16;
+      const h = card.clientHeight - 16;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      S.lastDrawnValues[chId] = null;
+      drawAnalogGauge(chId, S.gaugeValues[chId] || CHANNEL_DEFS[chId].min, null, w, h);
+    });
+    ro.observe(card);
+    card._ro = ro;
+  }
+}
+
+// ─── ANALOG GAUGE DRAW ────────────────────────────────────────────────────────
+function drawAnalogGauge(chId, value, row, w, h) {
+  const canvas = gaugeCanvases[chId];
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const def = CHANNEL_DEFS[chId];
+  if (!def) return;
+
+  const state = getDangerState(chId, value, row);
+  const color = dangerColor(state);
+  const cx = w / 2, cy = h / 2 - 10;
+  const radius = Math.min(cx, cy) * 0.82;
+
+  const startAngle = (225 * Math.PI) / 180;
+  const sweepAngle = (270 * Math.PI) / 180;
+
+  const pct = Math.max(0, Math.min(1, (value - def.min) / (def.max - def.min)));
+  const valueAngle = startAngle + sweepAngle * pct;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Background track
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, startAngle, startAngle + sweepAngle);
+  ctx.strokeStyle = '#2c2c32';
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Value arc
+  if (pct > 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, startAngle, valueAngle);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  // Ticks
+  const numMajor = 10;
+  for (let i = 0; i <= numMajor * 5; i++) {
+    const tickPct = i / (numMajor * 5);
+    const tickAngle = startAngle + sweepAngle * tickPct;
+    const isMajor = i % 5 === 0;
+    const outerR = radius - 14;
+    const innerR = isMajor ? radius - 24 : radius - 20;
+    const x1 = cx + Math.cos(tickAngle) * outerR;
+    const y1 = cy + Math.sin(tickAngle) * outerR;
+    const x2 = cx + Math.cos(tickAngle) * innerR;
+    const y2 = cy + Math.sin(tickAngle) * innerR;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = isMajor ? '#4b5563' : '#374151';
+    ctx.lineWidth = isMajor ? 1.5 : 1;
+    ctx.stroke();
+
+    if (isMajor) {
+      const labelR = radius - 34;
+      const lx = cx + Math.cos(tickAngle) * labelR;
+      const ly = cy + Math.sin(tickAngle) * labelR;
+      const labelVal = def.min + (def.max - def.min) * tickPct;
+      ctx.fillStyle = '#6b7280';
+      ctx.font = `10px ${getComputedStyle(document.documentElement).getPropertyValue('--font-mono') || 'monospace'}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      let txt = labelVal % 1 === 0 ? labelVal.toFixed(0) : labelVal.toFixed(1);
+      if (Math.abs(labelVal) >= 1000) txt = (labelVal/1000).toFixed(0)+'k';
+      ctx.fillText(txt, lx, ly);
+    }
+  }
+
+  // Needle
+  const needleAngle = valueAngle;
+  const needleLen = radius * 0.82;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(needleAngle) * needleLen, cy + Math.sin(needleAngle) * needleLen);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Hub
+  ctx.beginPath();
+  ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // Channel name
+  ctx.fillStyle = '#6b7280';
+  ctx.font = `11px ${getComputedStyle(document.documentElement).getPropertyValue('--font-ui') || 'system-ui'}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(def.label.toUpperCase(), cx, cy - radius * 0.55);
+
+  // Value
+  const displayVal = value !== null && !isNaN(value)
+    ? (Math.abs(value) >= 1000 ? Math.round(value).toLocaleString() : value.toFixed(value % 1 === 0 ? 0 : (Math.abs(value) < 10 ? 2 : 1)))
+    : '—';
+  ctx.fillStyle = color;
+  ctx.font = `bold 20px ${getComputedStyle(document.documentElement).getPropertyValue('--font-mono') || 'monospace'}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(displayVal, cx, cy + radius * 0.55);
+
+  // Unit
+  ctx.fillStyle = '#6b7280';
+  ctx.font = `10px ${getComputedStyle(document.documentElement).getPropertyValue('--font-ui') || 'system-ui'}`;
+  ctx.fillText(def.unit, cx, cy + radius * 0.55 + 14);
+
+  // Low RPM high load annotation on injpw
+  if (chId === 'injpw' && row) {
+    const curRpm = row.rpm, curTps = row.tps;
+    if (curRpm < 3500 && value > 6.5 && curTps > 40) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = `bold 9px monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText('LOW RPM HIGH LOAD', cx, cy + radius * 0.75);
+    }
+  }
+}
+
+function updateDigitalGauge(chId, value, row) {
+  const def = CHANNEL_DEFS[chId];
+  if (!def) return;
+  const state = getDangerState(chId, value, row);
+  const color = dangerColor(state);
+
+  const valEl  = document.getElementById(`dg-val-${chId}`);
+  const barEl  = document.getElementById(`dg-bar-${chId}`);
+  const dotEl  = document.getElementById(`dg-dot-${chId}`);
+
+  if (!valEl) return;
+
+  const pct = Math.max(0, Math.min(100, (value - def.min) / (def.max - def.min) * 100));
+  const displayVal = value !== null && !isNaN(value)
+    ? (Math.abs(value) >= 1000 ? Math.round(value).toLocaleString() : value.toFixed(value % 1 === 0 ? 0 : (Math.abs(value) < 10 ? 2 : 1)))
+    : '—';
+
+  valEl.textContent = displayVal;
+  valEl.style.color = color;
+  if (barEl) { barEl.style.width = pct + '%'; barEl.style.background = color; }
+  if (dotEl) dotEl.style.background = color;
+
+  // Danger pulse on card
+  const card = document.getElementById(`gauge-card-${chId}`);
+  if (card) {
+    if (state === 'danger') card.classList.add('danger-pulse');
+    else card.classList.remove('danger-pulse');
+  }
+
+  // Low RPM high load on injpw digital
+  if (chId === 'injpw' && row && row.rpm < 3500 && value > 6.5 && row.tps > 40) {
+    valEl.title = 'LOW RPM HIGH LOAD';
+  }
+}
+
+// ─── RAF RENDER LOOP ──────────────────────────────────────────────────────────
+function rafLoop() {
+  if (!S.rows.length) { S.rafId = requestAnimationFrame(rafLoop); return; }
+
+  const row = S.rows[S.currentFrame];
+
+  for (const chId of Object.keys(S.channels)) {
+    if (!S.visibleChannels[chId]) continue;
+    const def = CHANNEL_DEFS[chId];
+    if (!def) continue;
+
+    const target = row[chId] !== null && row[chId] !== undefined ? row[chId] : def.min;
+    const prev = S.gaugeValues[chId] !== undefined ? S.gaugeValues[chId] : target;
+    const smoothed = prev + (target - prev) * 0.12;
+    S.gaugeValues[chId] = smoothed;
+
+    const range = def.max - def.min;
+    const threshold = range * 0.001;
+    const lastDrawn = S.lastDrawnValues[chId];
+
+    if (S.gaugeTypes[chId] === 'digital') {
+      updateDigitalGauge(chId, smoothed, row);
+    } else {
+      if (lastDrawn === null || lastDrawn === undefined || Math.abs(smoothed - lastDrawn) > threshold) {
+        const canvas = gaugeCanvases[chId];
+        if (canvas) {
+          const w = parseInt(canvas.style.width) || 180;
+          const h = parseInt(canvas.style.height) || 190;
+          drawAnalogGauge(chId, smoothed, row, w, h);
+          S.lastDrawnValues[chId] = smoothed;
+        }
+      }
+
+      // Danger pulse on analog card
+      const card = document.getElementById(`gauge-card-${chId}`);
+      if (card) {
+        const state = getDangerState(chId, smoothed, row);
+        if (state === 'danger') card.classList.add('danger-pulse');
+        else card.classList.remove('danger-pulse');
+      }
+    }
+  }
+
+  // Retard overlay
+  checkRetardOverlay(row);
+
+  S.rafId = requestAnimationFrame(rafLoop);
+}
+
+function checkRetardOverlay(row) {
+  const overlay = document.getElementById('retard-overlay');
+  if (!overlay) return;
+
+  // Check if current frame has a retard event
+  const ev = S.retardEvents.find(e => e.frame === S.currentFrame);
+  if (ev) {
+    overlay.textContent = `RETARD EVENT ${ev.delta.toFixed(1)}°`;
+    overlay.style.display = 'block';
+    clearTimeout(S.retardOverlayTimers.main);
+    S.retardOverlayTimers.main = setTimeout(() => {
+      overlay.style.display = 'none';
+    }, 3000);
+  }
+}
+
+// ─── GRAPH HELPERS ───────────────────────────────────────────────────────────
+function fmtV(v) {
+  if (v === null || v === undefined || isNaN(v)) return '—';
+  return Math.abs(v) >= 100 ? v.toFixed(1) : v.toFixed(2);
+}
+function fmtGraphStats(chId, curVal, rs) {
+  return `${fmtV(curVal)} | min ${fmtV(rs.min)} | max ${fmtV(rs.max)} | avg ${fmtV(rs.avg)}`;
+}
+
+// ─── CHART BUILDING ───────────────────────────────────────────────────────────
+const CHART_ORDER = ['rpm','speed','tps','load','timing','injpw','injDuty','iacv','vanos','coolant','iat','voltage','lambdaB1','lambdaB2','boost','afr','knock'];
+const channelRunStats = {}; // precomputed {min,max,avg} per channel
+
+function buildSegmentedDatasets(chId, rows) {
+  return [{
+    label: chId,
+    data: rows.map(r => r[chId] !== undefined ? r[chId] : null),
+    borderColor: '#22c55e',
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    pointRadius: 0,
+    tension: 0.1,
+    spanGaps: true,
+    segment: {
+      borderColor: ctx => {
+        const idx = ctx.p0DataIndex;
+        if (idx >= rows.length) return '#22c55e';
+        const row = rows[idx];
+        const val = row[chId];
+        return dangerColor(getDangerState(chId, val, row));
+      }
+    }
+  }];
+}
+
+function buildCharts() {
+  const section = document.getElementById('graph-section');
+  section.innerHTML = '';
+  S.charts = {};
+  S.lastPlayheadX = {};
+
+  // Precompute run stats for all channels once
+  for (const chId of CHART_ORDER) {
+    if (!S.channels[chId]) continue;
+    const vals = S.rows.map(r => r[chId]).filter(v => v !== null && !isNaN(v));
+    if (!vals.length) { channelRunStats[chId] = { min: 0, max: 0, avg: 0 }; continue; }
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const avg = vals.reduce((a,b) => a+b, 0) / vals.length;
+    channelRunStats[chId] = { min, max, avg };
+  }
+
+  for (const chId of CHART_ORDER) {
+    const isActive = !!S.channels[chId];
+    const isOptional = OPTIONAL_CHANNELS.has(chId);
+
+    if (!isActive && !isOptional) continue;
+    if (!isActive && isOptional) {
+      // Placeholder
+      const ph = document.createElement('div');
+      ph.className = 'graph-placeholder';
+      ph.id = `graph-placeholder-${chId}`;
+      const def = CHANNEL_DEFS[chId];
+      ph.textContent = `${def.label.toUpperCase()} — not logged. Add to RomRaider config to enable.`;
+      section.appendChild(ph);
+      continue;
+    }
+
+    if (!S.visibleChannels[chId]) continue;
+
+    const card = document.createElement('div');
+    card.className = 'graph-card';
+    card.id = `graph-card-${chId}`;
+
+    const def = CHANNEL_DEFS[chId];
+    const rs = channelRunStats[chId] || { min: 0, max: 0, avg: 0 };
+    const curVal = S.rows[S.currentFrame] ? S.rows[S.currentFrame][chId] : null;
+    const statsStr = fmtGraphStats(chId, curVal, rs);
+
+    card.innerHTML = `
+      <div class="graph-header">
+        <span class="graph-name">${def.label} (${def.unit})</span>
+        <span class="graph-stats" id="graph-stats-${chId}">${statsStr}</span>
+      </div>
+      <div class="graph-canvas-wrap"><canvas id="graph-canvas-${chId}"></canvas></div>
+    `;
+
+    card.querySelector('.graph-canvas-wrap').addEventListener('click', (e) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const xFrac = (e.clientX - rect.left) / rect.width;
+      const frame = Math.round(xFrac * (S.rows.length - 1));
+      seekToFrame(Math.max(0, Math.min(S.rows.length - 1, frame)));
+    });
+
+    section.appendChild(card);
+
+    // Build chart
+    const canvas = document.getElementById(`graph-canvas-${chId}`);
+    if (!canvas) continue;
+
+    const datasets = buildSegmentedDatasets(chId, S.rows);
+
+    const plugins = {
+      legend: { display: false },
+      tooltip: { enabled: false }
+    };
+
+    const chart = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: S.rows.map((_, i) => i),
+        datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+          x: {
+            type: 'category',
+            display: false,
+            ticks: { maxTicksLimit: 0 }
+          },
+          y: {
+            min: def.min,
+            max: def.max,
+            display: true,
+            ticks: { color: '#6b7280', font: { size: 9 }, maxTicksLimit: 4 },
+            grid: { color: '#2c2c32', lineWidth: 0.5 },
+            border: { display: false }
+          }
+        },
+        plugins,
+        elements: { line: { borderCapStyle: 'round' } }
+      },
+      plugins: [{
+        id: `playhead-${chId}`,
+        afterDraw: (chartInst) => {
+          drawChartExtras(chartInst, chId);
+        }
+      }]
+    });
+
+    S.charts[chId] = chart;
+    S.lastPlayheadX[chId] = -1;
+  }
+}
+
+function drawChartExtras(chart, chId) {
+  const ctx = chart.ctx;
+  const xScale = chart.scales.x;
+  const yScale = chart.scales.y;
+  const area = chart.chartArea;
+
+  ctx.save();
+
+  // Timing enhancements
+  if (chId === 'timing') {
+    // Normal WOT zone band
+    const y20 = yScale.getPixelForValue(20);
+    const y35 = yScale.getPixelForValue(35);
+    ctx.fillStyle = 'rgba(34,197,94,0.08)';
+    ctx.fillRect(area.left, Math.min(y20, y35), area.right - area.left, Math.abs(y35 - y20));
+
+    // Danger floor
+    const y15 = yScale.getPixelForValue(15);
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(239,68,68,0.35)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.moveTo(area.left, y15);
+    ctx.lineTo(area.right, y15);
+    ctx.stroke();
+
+    // Warning floor
+    const y18 = yScale.getPixelForValue(18);
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(245,158,11,0.35)';
+    ctx.lineWidth = 1;
+    ctx.moveTo(area.left, y18);
+    ctx.lineTo(area.right, y18);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+  }
+
+  // Lambda graphs: zero line and WOT tint
+  if (chId === 'lambdaB1' || chId === 'lambdaB2') {
+    // WOT frame tint
+    ctx.fillStyle = 'rgba(59,130,246,0.06)';
+    let inWot = false;
+    let wotStart = 0;
+    for (let i = 0; i < S.rows.length; i++) {
+      const tps = S.rows[i].tps;
+      const isWot = tps > 80;
+      if (isWot && !inWot) { wotStart = i; inWot = true; }
+      else if (!isWot && inWot) {
+        const x1 = xScale.getPixelForValue(wotStart);
+        const x2 = xScale.getPixelForValue(i);
+        ctx.fillRect(x1, area.top, x2 - x1, area.bottom - area.top);
+        inWot = false;
+      }
+    }
+    if (inWot) {
+      const x1 = xScale.getPixelForValue(wotStart);
+      ctx.fillRect(x1, area.top, area.right - x1, area.bottom - area.top);
+    }
+
+    // Zero line
+    const y0 = yScale.getPixelForValue(0);
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(107,114,128,0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.moveTo(area.left, y0);
+    ctx.lineTo(area.right, y0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // InjPW: peak annotation
+  if (chId === 'injpw' && S.rows.length) {
+    const peakRow = S.rows.reduce((best, row, i) => {
+      const v = row.injpw;
+      return (v !== null && (best === null || v > best.v)) ? { v, i } : best;
+    }, null);
+
+    if (peakRow) {
+      const px = xScale.getPixelForValue(peakRow.i);
+      const py = yScale.getPixelForValue(peakRow.v);
+      ctx.beginPath();
+      ctx.arc(px, py, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fill();
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`peak ${peakRow.v.toFixed(2)}ms`, px, py - 8);
+    }
+  }
+
+  // Playhead
+  const frame = S.currentFrame;
+  const xScale2 = chart.scales.x;
+  const px = xScale2.getPixelForValue(frame);
+  ctx.beginPath();
+  ctx.strokeStyle = '#3b82f6';
+  ctx.lineWidth = 1;
+  ctx.moveTo(px, area.top);
+  ctx.lineTo(px, area.bottom);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function updateChartPlayheads() {
+  for (const [chId, chart] of Object.entries(S.charts)) {
+    const xScale = chart.scales.x;
+    if (!xScale) continue;
+    const px = xScale.getPixelForValue(S.currentFrame);
+    const lastPx = S.lastPlayheadX[chId] !== undefined ? S.lastPlayheadX[chId] : -1;
+    if (Math.abs(px - lastPx) > 0.5) {
+      S.lastPlayheadX[chId] = px;
+      chart.update('none');
+
+      // Update stats label
+      const statsEl = document.getElementById(`graph-stats-${chId}`);
+      if (statsEl && S.rows[S.currentFrame]) {
+        const curVal = S.rows[S.currentFrame][chId];
+        statsEl.textContent = fmtGraphStats(chId, curVal, channelRunStats[chId] || {});
+      }
+    }
+  }
+}
+
+// ─── PLAYBACK ─────────────────────────────────────────────────────────────────
+function startPlayback() {
+  if (S.isPlaying) return;
+  if (S.currentFrame >= S.rows.length - 1) S.currentFrame = 0;
+  S.isPlaying = true;
+  document.getElementById('btn-play').textContent = '⏸ Pause';
+
+  const tick = () => {
+    if (!S.isPlaying) return;
+    S.currentFrame++;
+    if (S.currentFrame >= S.rows.length) {
+      S.currentFrame = S.rows.length - 1;
+      stopPlayback();
+      showToast('Run complete', 'info');
+      return;
+    }
+    updateUI();
+    S.intervalId = setTimeout(tick, S.frameIntervalMs / S.speed);
+  };
+  S.intervalId = setTimeout(tick, S.frameIntervalMs / S.speed);
+}
+
+function stopPlayback() {
+  S.isPlaying = false;
+  clearTimeout(S.intervalId);
+  S.intervalId = null;
+  document.getElementById('btn-play').textContent = '▶ Play';
+}
+
+function seekToFrame(frame) {
+  S.currentFrame = Math.max(0, Math.min(S.rows.length - 1, frame));
+  updateUI();
+}
+
+function updateUI() {
+  const scrubber = document.getElementById('scrubber');
+  scrubber.value = S.currentFrame;
+
+  const t = (S.currentFrame * S.frameIntervalMs / 1000).toFixed(1);
+  document.getElementById('frame-counter').textContent =
+    `Frame ${String(S.currentFrame).padStart(4,'0')} / ${S.rows.length - 1} | ${t}s @ ${S.frameIntervalMs}ms`;
+
+  updateChartPlayheads();
+}
+
+// ─── CHANNEL VISIBILITY ───────────────────────────────────────────────────────
+function buildChannelToggles() {
+  const wrap = document.getElementById('channel-toggles');
+  wrap.innerHTML = '';
+  for (const chId of Object.keys(S.channels)) {
+    const label = document.createElement('label');
+    label.className = 'ch-toggle';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = S.visibleChannels[chId] !== false;
+    cb.addEventListener('change', () => {
+      S.visibleChannels[chId] = cb.checked;
+      const gaugeCard = document.getElementById(`gauge-card-${chId}`);
+      const graphCard = document.getElementById(`graph-card-${chId}`);
+      if (gaugeCard) gaugeCard.style.display = cb.checked ? '' : 'none';
+      if (graphCard) graphCard.style.display = cb.checked ? '' : 'none';
+    });
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(CHANNEL_DEFS[chId]?.label || chId));
+    wrap.appendChild(label);
+  }
+}
+
+// ─── GAUGE SECTION HEIGHT ────────────────────────────────────────────────────
+function setGaugeSectionHeight() {
+  const main = document.getElementById('main');
+  const gaugeSection = document.getElementById('gauge-section');
+  const totalH = main.clientHeight;
+  const togglesH = document.getElementById('channel-toggles').offsetHeight;
+  const gaugeH = Math.floor((totalH - togglesH) * 0.42);
+  gaugeSection.style.height = gaugeH + 'px';
+}
+
+// ─── INIT AFTER PARSE ─────────────────────────────────────────────────────────
+function initDashboard(parsed, filename) {
+  S.rows = parsed.rows;
+  S.channels = parsed.activeChannels;
+  S.frameIntervalMs = parsed.frameIntervalMs;
+  S.b2FlatFlag = parsed.b2FlatFlag;
+  S.retardEvents = parsed.retardEvents;
+  S.currentFrame = 0;
+  S.isPlaying = false;
+  S.gaugeValues = {};
+  S.lastDrawnValues = {};
+  S.lastPlayheadX = {};
+
+  // Load gauge prefs from localStorage
+  for (const chId of Object.keys(S.channels)) {
+    const saved = localStorage.getItem(`e36dash_gauge_${chId}`);
+    S.gaugeTypes[chId] = saved || 'analog';
+    S.visibleChannels[chId] = true;
+  }
+
+  S.dangerEvents = buildDangerEvents(S.rows, S.channels);
+
+  // Update top bar
+  const rate = `${S.frameIntervalMs}ms`;
+  document.getElementById('topbar-info').textContent =
+    `${filename} | ${S.rows.length} frames | ${rate}/frame`;
+
+  // Show main content
+  document.getElementById('dropzone').style.display = 'none';
+  document.getElementById('main').style.display = 'flex';
+
+  // Scrubber
+  const scrubber = document.getElementById('scrubber');
+  scrubber.max = S.rows.length - 1;
+  scrubber.value = 0;
+
+  buildChannelToggles();
+  setGaugeSectionHeight();
+  buildGaugeGrid();
+
+  setTimeout(() => {
+    buildCharts();
+    renderStats(S.rows);
+    renderEventLog();
+    updateUI();
+
+    if (S.retardEvents.length > 0) {
+      showToast(`${S.retardEvents.length} timing retard event(s) detected`, 'warning');
+    }
+    if (S.b2FlatFlag) {
+      showToast('Bank 2 lambda integrator flat — inspect sensor', 'warning');
+    }
+  }, 50);
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => { toast.remove(); }, 3000);
+}
+
+// ─── OVERLAY TOGGLE ───────────────────────────────────────────────────────────
+function hideOverlays() {
+  document.getElementById('stats-panel').classList.remove('visible');
+  document.getElementById('event-panel').classList.remove('visible');
+  document.getElementById('btn-stats').classList.remove('active');
+  document.getElementById('btn-events').classList.remove('active');
+}
+
+// ─── EVENT WIRING ─────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Drop zone
+  const dropTarget = document.getElementById('drop-target');
+  const fileInput  = document.getElementById('file-input');
+
+  dropTarget.addEventListener('click', () => fileInput.click());
+  dropTarget.addEventListener('dragover', (e) => { e.preventDefault(); dropTarget.classList.add('drag-over'); });
+  dropTarget.addEventListener('dragleave', () => dropTarget.classList.remove('drag-over'));
+  dropTarget.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropTarget.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.csv')) loadFile(file);
+    else showToast('Please drop a .csv file', 'warning');
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) loadFile(fileInput.files[0]);
+  });
+
+  // Playback
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    stopPlayback();
+    seekToFrame(0);
+  });
+  document.getElementById('btn-play').addEventListener('click', () => {
+    if (S.isPlaying) stopPlayback();
+    else startPlayback();
+  });
+  document.getElementById('speed-select').addEventListener('change', (e) => {
+    S.speed = parseFloat(e.target.value);
+  });
+  document.getElementById('scrubber').addEventListener('input', (e) => {
+    seekToFrame(parseInt(e.target.value));
+  });
+
+  // Spacebar
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+      e.preventDefault();
+      if (S.isPlaying) stopPlayback();
+      else if (S.rows.length) startPlayback();
+    }
+  });
+
+  // Stats / Events panel
+  document.getElementById('btn-stats').addEventListener('click', () => {
+    const panel = document.getElementById('stats-panel');
+    const isVisible = panel.classList.contains('visible');
+    hideOverlays();
+    if (!isVisible) {
+      panel.classList.add('visible');
+      document.getElementById('btn-stats').classList.add('active');
+    }
+  });
+  document.getElementById('btn-events').addEventListener('click', () => {
+    const panel = document.getElementById('event-panel');
+    const isVisible = panel.classList.contains('visible');
+    hideOverlays();
+    if (!isVisible) {
+      panel.classList.add('visible');
+      document.getElementById('btn-events').classList.add('active');
+    }
+  });
+
+  // Window resize
+  window.addEventListener('resize', () => {
+    if (S.rows.length) setGaugeSectionHeight();
+  });
+
+  // Start RAF loop
+  S.rafId = requestAnimationFrame(rafLoop);
+});
+
+function loadFile(file) {
+  showToast(`Loading ${file.name}…`, 'info');
+  parseCSV(file).then(parsed => {
+    initDashboard(parsed, file.name);
+  }).catch(err => {
+    console.error(err);
+    showToast('Parse error: ' + err.message, 'danger');
+  });
+}
+</script>
+</body>
+</html>
