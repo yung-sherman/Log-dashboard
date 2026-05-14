@@ -179,9 +179,11 @@
   /* EVENT LOG */
   #event-panel {
     display: none; position: fixed; top: 48px; left: 0; right: 0; bottom: 32px;
-    background: var(--bg); overflow-y: auto; z-index: 90; padding: 16px;
+    background: var(--bg); overflow: hidden; z-index: 90;
   }
-  #event-panel.visible { display: block; }
+  #event-panel.visible { display: flex; }
+  #event-split { display: flex; width: 100%; height: 100%; }
+  #event-left { flex: 1; min-width: 0; overflow-y: auto; padding: 16px; border-right: 1px solid var(--border); }
   #event-table { width: 100%; border-collapse: collapse; font-size: 11px; font-family: var(--font-mono); }
   #event-table th { text-align: left; padding: 6px 8px; color: var(--muted); border-bottom: 1px solid var(--border); font-size: 10px; text-transform: uppercase; }
   #event-table td { padding: 5px 8px; border-bottom: 1px solid #1e1e24; }
@@ -189,6 +191,58 @@
   .ev-danger { color: var(--danger); }
   .ev-warn { color: var(--warn); }
   .ev-info { color: var(--accent); }
+  .ev-analyze-btn {
+    background: #222228; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 3px; padding: 1px 5px; font-size: 9px; cursor: pointer;
+    font-family: var(--font-mono); white-space: nowrap;
+  }
+  .ev-analyze-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* CLAUDE CHAT PANEL */
+  #claude-chat {
+    width: 360px; flex-shrink: 0; display: flex; flex-direction: column; background: #111114;
+  }
+  #chat-header { padding: 10px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #chat-header-title {
+    font-family: var(--font-mono); font-size: 11px; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;
+  }
+  #api-key-row { display: flex; gap: 6px; }
+  #claude-api-key {
+    flex: 1; background: #18181c; border: 1px solid var(--border); color: var(--text);
+    border-radius: 4px; padding: 4px 8px; font-size: 11px; font-family: var(--font-mono); outline: none;
+  }
+  #claude-api-key:focus { border-color: var(--accent); }
+  #save-api-key {
+    background: #1e3a5f; border: 1px solid var(--accent); color: var(--accent);
+    border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; font-family: var(--font-mono);
+  }
+  #save-api-key:hover { background: #2a4a6f; }
+  #chat-analyze-all {
+    margin-top: 8px; width: 100%; background: #222228; border: 1px solid var(--border);
+    color: var(--muted); border-radius: 4px; padding: 5px 8px; font-size: 10px; cursor: pointer;
+    font-family: var(--font-mono); text-align: left;
+  }
+  #chat-analyze-all:hover { border-color: var(--accent); color: var(--text); }
+  #chat-messages {
+    flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .chat-msg { font-size: 12px; line-height: 1.55; padding: 8px 10px; border-radius: 6px; word-break: break-word; white-space: pre-wrap; }
+  .chat-msg-user { background: #1e3a5f; border: 1px solid #2a4a6f; color: var(--text); align-self: flex-end; max-width: 88%; }
+  .chat-msg-assistant { background: var(--card); border: 1px solid var(--border); color: var(--text); align-self: flex-start; max-width: 96%; font-family: var(--font-mono); }
+  .chat-msg-system { background: transparent; color: var(--muted); font-size: 11px; text-align: center; font-family: var(--font-mono); font-style: italic; }
+  #chat-input-row { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+  #chat-input {
+    flex: 1; background: #18181c; border: 1px solid var(--border); color: var(--text);
+    border-radius: 4px; padding: 6px 10px; font-size: 12px; font-family: var(--font-mono); outline: none;
+  }
+  #chat-input:focus { border-color: var(--accent); }
+  #chat-send {
+    background: var(--accent); border: none; color: white; border-radius: 4px;
+    padding: 6px 12px; font-size: 11px; cursor: pointer; font-family: var(--font-mono); white-space: nowrap;
+  }
+  #chat-send:hover { background: #2563eb; }
+  #chat-send:disabled { background: var(--border); color: var(--muted); cursor: default; }
 
   /* TOASTS */
   #toast-container {
@@ -269,11 +323,30 @@
 
 <!-- EVENT LOG -->
 <div id="event-panel">
-  <h3 style="font-family:var(--font-mono);color:var(--accent);margin-bottom:14px;font-size:13px;">DANGER / EVENT LOG</h3>
-  <table id="event-table">
-    <thead><tr><th>Frame</th><th>Time</th><th>Channel</th><th>Value</th><th>RPM</th><th>Load</th><th>Notes</th></tr></thead>
-    <tbody id="event-tbody"></tbody>
-  </table>
+  <div id="event-split">
+    <div id="event-left">
+      <h3 style="font-family:var(--font-mono);color:var(--accent);margin-bottom:14px;font-size:13px;">DANGER / EVENT LOG</h3>
+      <table id="event-table">
+        <thead><tr><th>Frame</th><th>Time</th><th>Channel</th><th>Value</th><th>RPM</th><th>Load</th><th>Notes</th><th></th></tr></thead>
+        <tbody id="event-tbody"></tbody>
+      </table>
+    </div>
+    <div id="claude-chat">
+      <div id="chat-header">
+        <div id="chat-header-title">⚡ AI DIAGNOSIS — Claude</div>
+        <div id="api-key-row">
+          <input id="claude-api-key" type="password" placeholder="sk-ant-… API key" autocomplete="off">
+          <button id="save-api-key">Save</button>
+        </div>
+        <button id="chat-analyze-all">Analyze all events in this log</button>
+      </div>
+      <div id="chat-messages"></div>
+      <div id="chat-input-row">
+        <input id="chat-input" type="text" placeholder="Ask about this log…">
+        <button id="chat-send">Send</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- TOASTS -->
@@ -746,6 +819,8 @@ function renderEventLog() {
     const tr = document.createElement('tr');
     const cls = ev.state === 'danger' ? 'ev-danger' : 'ev-warn';
     const t = (ev.frame * S.frameIntervalMs / 1000).toFixed(2);
+    const tdSeek = document.createElement('td');
+    tdSeek.colSpan = 7;
     tr.innerHTML = `
       <td class="${cls}">${ev.frame}</td>
       <td>${t}s</td>
@@ -755,6 +830,36 @@ function renderEventLog() {
       <td>${ev.load !== null && !isNaN(ev.load) ? Math.round(ev.load) : '—'}</td>
       <td>${ev.notes || ''}</td>
     `;
+    const analyzeCell = document.createElement('td');
+    const analyzeBtn = document.createElement('button');
+    analyzeBtn.className = 'ev-analyze-btn';
+    analyzeBtn.textContent = 'Ask AI';
+    analyzeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const rpm   = ev.rpm   !== null && !isNaN(ev.rpm)  ? Math.round(ev.rpm)  : '?';
+      const load  = ev.load  !== null && !isNaN(ev.load) ? Math.round(ev.load) : '?';
+      const val   = typeof ev.val === 'number' ? ev.val.toFixed(2) : ev.val;
+      const prompt = `Explain this specific event (frame ${ev.frame}, t=${t}s):\n` +
+        `${ev.label} = ${val} ${ev.unit} [${ev.state.toUpperCase()}]\n` +
+        `RPM: ${rpm}  |  Load: ${load} mg/stk\n` +
+        (ev.notes ? `Notes: ${ev.notes}\n` : '') +
+        `\nWhat are the likely causes and what should I inspect or adjust?`;
+      const chatInput = document.getElementById('chat-input');
+      if (chatInput) chatInput.value = prompt;
+      sendChatMessage(prompt);
+      // Show event panel if not visible
+      const panel = document.getElementById('event-panel');
+      if (!panel.classList.contains('visible')) {
+        hideOverlays();
+        panel.classList.add('visible');
+        document.getElementById('btn-events').classList.add('active');
+      }
+      // Scroll chat into view
+      const chatPanel = document.getElementById('claude-chat');
+      if (chatPanel) chatPanel.scrollIntoView({ behavior: 'smooth' });
+    });
+    analyzeCell.appendChild(analyzeBtn);
+    tr.appendChild(analyzeCell);
     tr.addEventListener('click', () => {
       seekToFrame(ev.frame);
       hideOverlays();
@@ -1548,6 +1653,189 @@ function hideOverlays() {
   document.getElementById('btn-events').classList.remove('active');
 }
 
+// ─── CLAUDE CHAT ─────────────────────────────────────────────────────────────
+const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+const CLAUDE_MODEL   = 'claude-opus-4-7';
+
+const BUILD_CONTEXT = `You are an expert automotive diagnostics AI for a turbocharged BMW E36 with an M52B28 2.8L inline-6 engine.
+
+BUILD DETAILS:
+- Fuel: E85 ethanol
+- Tune: RK Tunes (custom E85 ECU map, Siemens MS41 ECU)
+- Forced induction: single turbo setup, target boost ~16–18 psi
+- Engine: BMW M52B28, 2.8L inline-6, 6 cylinders, DOHC, VANOS intake cam phasing
+- Injection: sequential port fuel injection (4-stroke, fires once per 2 crank revolutions)
+- Exhaust: custom turbo manifold
+
+CRITICAL E85 TUNE CHARACTERISTICS (RK Tunes map):
+- Timing at light/part throttle (TPS < 40% OR load < 150 mg/stk): 40–53° BTDC is COMPLETELY NORMAL for E85. Do NOT flag this as a problem.
+- Timing at WOT (TPS > 80%, load > 200 mg/stk): expected 20–40° BTDC. Below 15° = significant retard (investigate). Above 46° = unusually high.
+- Timing at transition zone (TPS 40–60%, load 150–200 mg/stk): up to 50° may appear; below 18° = warning.
+- Timing retard events (sudden drops > 4° while under load) are the most critical events — they indicate the ECU is pulling timing due to knock detection, fuel issues, or protection limits. Always investigate these.
+- Bank 2 lambda integrator reading flat at 0.0% across the entire run = stuck/faulty upstream O2 sensor on bank 2 (known issue with this build). The ECU is running open-loop on bank 2 as a result.
+- Injector duty cycle > 75% at WOT = approaching injector capacity limit. > 85% = dangerous (fuel cut risk).
+- Injector pulse width > 8.0 ms = high. > 8.8 ms = dangerous.
+- Boost target: 16–18 psi. Over 22 psi = warning, over 26 psi = dangerous.
+- IAT over 120°F = elevated detonation risk. Over 148°F = dangerous (intercooler efficiency loss or soak).
+- Low-RPM high-load events (RPM < 3500, InjPW > 6.5 ms, TPS > 40%) = fuel starvation risk zone.
+
+CHANNEL DEFINITIONS:
+- RPM: engine speed (rpm). Redline ~7300 rpm.
+- Load: engine load in mg/stk (milligrams per stroke). WOT typically 350–420.
+- TPS: throttle position (%). > 80% = wide open throttle (WOT).
+- IAT: intake air temperature at turbo inlet (°F).
+- Coolant: engine coolant temperature (°F). Normal: 185–212°F.
+- Timing: ignition advance, degrees BTDC (before top dead center).
+- InjPW: injector pulse width in milliseconds.
+- InjDuty: injector duty cycle (%).
+- IACV: idle air control valve position (%).
+- VANOS: intake cam phaser advance angle (KW°).
+- Lambda B1/B2: closed-loop fuel trim integrators for banks 1 and 2 (% correction). Near 0% = good fuel delivery. Large positive = running lean, large negative = running rich.
+- Boost: manifold pressure above atmospheric (psi).
+- AFR: air-fuel ratio from wideband O2 sensor.
+- Knock: knock sensor event count.
+
+You help diagnose issues based on RomRaider ECU log data. Provide clear, technically accurate explanations. Focus on likely root causes (knock, fuel delivery, heat, sensor faults, fueling trim) and specific actionable next steps (what to inspect, log, adjust, or tune).`;
+
+let chatHistory = [];
+let chatStreaming = false;
+
+function getApiKey() {
+  return localStorage.getItem('e36dash_api_key') || '';
+}
+
+function buildChatContext() {
+  if (!S.rows.length) return '';
+  const st = computeStats(S.rows);
+  const dur = (S.rows.length * S.frameIntervalMs / 1000).toFixed(1);
+  const lines = [
+    `\n\n--- CURRENT LOG SUMMARY (${S.rows.length} frames, ${dur}s @ ${S.frameIntervalMs}ms/frame) ---`,
+    `Peak RPM: ${st.peakRPM ? Math.round(st.peakRPM) : '—'}`,
+    `Peak load: ${st.peakLoad ? st.peakLoad.toFixed(1) : '—'} mg/stk`,
+    `WOT frames (TPS>80%): ${st.wotCount}`,
+    `Min timing @ WOT: ${st.minTimingWOT !== null ? st.minTimingWOT.toFixed(1) + '° BTDC' : '—'}`,
+    `Max timing (full run): ${st.maxTimingFull !== null ? st.maxTimingFull.toFixed(1) + '° BTDC' : '—'}`,
+    `Timing retard events: ${st.retardCount}`,
+    `Peak injector PW: ${st.peakInjPW ? st.peakInjPW.toFixed(3) + ' ms (frame ' + st.peakInjPWFrame + ')' : '—'}`,
+    `Peak inj duty cycle: ${st.peakInjDuty ? st.peakInjDuty.toFixed(1) + '%' : '—'}`,
+    `Peak IAT: ${st.peakIAT ? st.peakIAT.toFixed(1) + '°F' : '—'}`,
+    `Coolant range: ${(st.minCoolant !== null && st.maxCoolant !== null) ? st.minCoolant.toFixed(1) + '–' + st.maxCoolant.toFixed(1) + '°F' : '—'}`,
+    `Bank 1 lambda range: ${(st.minLB1 !== null && st.maxLB1 !== null) ? st.minLB1.toFixed(1) + ' to ' + st.maxLB1.toFixed(1) + '%' : '—'}`,
+    `Bank 2 lambda flat: ${st.b2FlatFlag ? 'YES — sensor likely stuck/faulty' : 'No'}`,
+  ];
+  if (S.retardEvents.length) {
+    lines.push(`\nTIMING RETARD EVENTS (${S.retardEvents.length} total):`);
+    S.retardEvents.slice(0, 15).forEach((ev, i) => {
+      lines.push(`  ${i+1}. Frame ${ev.frame}: ${ev.timingBefore.toFixed(1)}° → ${ev.timingAfter.toFixed(1)}° (Δ${ev.delta.toFixed(1)}°) @ ${Math.round(ev.rpm)} rpm / ${Math.round(ev.load)} mg/stk`);
+    });
+    if (S.retardEvents.length > 15) lines.push(`  …and ${S.retardEvents.length - 15} more`);
+  }
+  const dangerCount = S.dangerEvents.filter(e => e.state === 'danger').length;
+  const warnCount  = S.dangerEvents.filter(e => e.state === 'warning').length;
+  lines.push(`\nDanger events: ${dangerCount} danger, ${warnCount} warning`);
+  return lines.join('\n');
+}
+
+async function sendChatMessage(userText) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    appendChatMsg('system', 'Enter your Anthropic API key above and click Save to enable AI diagnosis.');
+    return;
+  }
+  if (chatStreaming) return;
+  if (!userText.trim()) return;
+
+  const inputEl = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('chat-send');
+  if (inputEl) inputEl.value = '';
+  if (sendBtn) sendBtn.disabled = true;
+
+  chatStreaming = true;
+  chatHistory.push({ role: 'user', content: userText });
+  appendChatMsg('user', userText);
+
+  const assistantEl = appendChatMsg('assistant', '▋');
+
+  const systemPrompt = BUILD_CONTEXT + buildChatContext();
+
+  try {
+    const resp = await fetch(CLAUDE_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 1500,
+        stream: true,
+        system: systemPrompt,
+        messages: chatHistory
+      })
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      let errMsg = `API error ${resp.status}`;
+      try { errMsg = JSON.parse(errText).error?.message || errMsg; } catch(e) {}
+      assistantEl.textContent = `Error: ${errMsg}`;
+      chatHistory.pop();
+      chatStreaming = false;
+      if (sendBtn) sendBtn.disabled = false;
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let assistantText = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const payload = line.slice(6).trim();
+        if (payload === '[DONE]') break;
+        try {
+          const evt = JSON.parse(payload);
+          if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
+            assistantText += evt.delta.text;
+            assistantEl.textContent = assistantText + '▋';
+            const msgBox = document.getElementById('chat-messages');
+            if (msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+          }
+        } catch(e) {}
+      }
+    }
+
+    assistantEl.textContent = assistantText || '(no response)';
+    chatHistory.push({ role: 'assistant', content: assistantText });
+  } catch(e) {
+    assistantEl.textContent = `Error: ${e.message}`;
+    chatHistory.pop();
+  }
+
+  chatStreaming = false;
+  if (sendBtn) sendBtn.disabled = false;
+}
+
+function appendChatMsg(role, text) {
+  const msgBox = document.getElementById('chat-messages');
+  if (!msgBox) return null;
+  const div = document.createElement('div');
+  div.className = `chat-msg chat-msg-${role}`;
+  div.textContent = text;
+  msgBox.appendChild(div);
+  msgBox.scrollTop = msgBox.scrollHeight;
+  return div;
+}
+
 // ─── EVENT WIRING ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   // Drop zone
@@ -1590,6 +1878,52 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       if (S.isPlaying) stopPlayback();
       else if (S.rows.length) startPlayback();
+    }
+  });
+
+  // Claude chat wiring
+  const savedKey = localStorage.getItem('e36dash_api_key');
+  if (savedKey) {
+    const keyInput = document.getElementById('claude-api-key');
+    if (keyInput) keyInput.value = savedKey;
+  }
+  document.getElementById('save-api-key').addEventListener('click', () => {
+    const val = document.getElementById('claude-api-key').value.trim();
+    if (val) {
+      localStorage.setItem('e36dash_api_key', val);
+      showToast('API key saved', 'info');
+    }
+  });
+  document.getElementById('chat-analyze-all').addEventListener('click', () => {
+    if (!S.rows.length) { appendChatMsg('system', 'Load a log file first.'); return; }
+    const st = computeStats(S.rows);
+    let prompt = `Analyze this full E36 datalog run and give me your diagnosis:\n\n`;
+    prompt += `Run duration: ${(S.rows.length * S.frameIntervalMs / 1000).toFixed(1)}s, ${S.rows.length} frames\n`;
+    prompt += `Peak RPM: ${st.peakRPM ? Math.round(st.peakRPM) : '—'}\n`;
+    prompt += `Peak load: ${st.peakLoad ? st.peakLoad.toFixed(1) : '—'} mg/stk\n`;
+    prompt += `Min timing @ WOT: ${st.minTimingWOT !== null ? st.minTimingWOT.toFixed(1) + '°' : '—'}\n`;
+    prompt += `Timing retard events: ${st.retardCount}\n`;
+    prompt += `Peak IAT: ${st.peakIAT ? st.peakIAT.toFixed(1) + '°F' : '—'}\n`;
+    prompt += `Peak inj duty: ${st.peakInjDuty ? st.peakInjDuty.toFixed(1) + '%' : '—'}\n`;
+    prompt += `Bank 2 lambda flat: ${st.b2FlatFlag ? 'YES' : 'No'}\n`;
+    if (S.retardEvents.length) {
+      prompt += `\nTiming retard events:\n`;
+      S.retardEvents.forEach((ev, i) => {
+        prompt += `  ${i+1}. ${ev.timingBefore.toFixed(1)}° → ${ev.timingAfter.toFixed(1)}° (Δ${ev.delta.toFixed(1)}°) @ ${Math.round(ev.rpm)} rpm / ${Math.round(ev.load)} mg/stk\n`;
+      });
+    }
+    prompt += `\nWhat are the key concerns, likely causes, and what should I check or adjust?`;
+    sendChatMessage(prompt);
+  });
+  document.getElementById('chat-send').addEventListener('click', () => {
+    const val = document.getElementById('chat-input').value.trim();
+    if (val) sendChatMessage(val);
+  });
+  document.getElementById('chat-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const val = document.getElementById('chat-input').value.trim();
+      if (val) sendChatMessage(val);
     }
   });
 
